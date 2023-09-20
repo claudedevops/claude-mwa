@@ -1,4 +1,4 @@
-# a scripted Jenkinsfile
+// a scripted Jenkinsfile
 node {
     def mavenHome = tool name: 'maven3.9.4'
 	stage('1.CloneCode'){
