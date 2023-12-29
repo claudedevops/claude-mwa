@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+    tools {
+        maven "Maven3.9.6"
+    }
+    stages {
+        stage("Clone") {
+            steps {
+                git 'https://github.com/chinnytech/Another_one.git'
+            }
+        }
+        stage("Build"){
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+        stage("Static Code Analysis"){
+            environment {
+                SONAR_URL = 'http://3.144.38.71:9000'
+            }
+            steps {
+                withCredentials([string(credentialsId: 'Sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
+                    sh 'mvn sonar:sonar -Dsonar.login=${SONAR_AUTH_TOKEN} -Dsonar.host.url=${SONAR_URL}'
+                }
+            }
+        }
+        stage("Artifact Upload"){
+            environment {
+                NEXUS_URL = 'http://3.144.38.71:8081/repository/Blissfull/'
+            }
+            steps {
+                     sh 'mvn deploy -DskipTests -DrepositoryId=nexus -DaltDeploymentRepository=nexus::${NEXUS_URL}'
+            }
+        }
+        stage("Build Docker Image"){
+            environment {
+                DOCKER_IMAGE = 'tesla'
+                DOCKER_TAG = 'latest'
+                DOCKER_REGISTRY = 'docker.io'
+                MY_REPO = 'chinnyb/bliss-web-app'
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                    sh 'docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .'
+                    sh 'docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD} ${DOCKER_REGISTRY}'
+                    sh 'docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${MY_REPO}'
+                    sh 'docker push ${MY_REPO}'
+                }
+            }
+        }
+        stage("Deploy to K8s CLuster"){
+            steps {
+                sh 'kubectl apply -f deploy.yaml'
+            }
+        }
